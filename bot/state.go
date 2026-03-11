@@ -1,6 +1,9 @@
 package bot
 
 import (
+	"fmt"
+	"html"
+	"strings"
 	"sync"
 	"time"
 )
@@ -66,6 +69,56 @@ func (sm *stateManager) stopAutoRefresh(chatID int64) {
 	<-ar.Done
 }
 
+// startAutoRefresh begins a background goroutine that periodically re-fetches
+// tail output and edits the Telegram message in place.
 func (b *Bot) startAutoRefresh(chatID int64, messageID int, agentName string, verbose bool) {
-	// Implemented in Task 6
+	// Stop any existing auto-refresh first
+	b.states.stopAutoRefresh(chatID)
+
+	ar := &AutoRefreshState{
+		AgentName: agentName,
+		MessageID: messageID,
+		ChatID:    chatID,
+		Verbose:   verbose,
+		Ticker:    time.NewTicker(5 * time.Second),
+		Stop:      make(chan struct{}),
+		Done:      make(chan struct{}),
+	}
+
+	s := b.states.get(chatID)
+	b.states.mu.Lock()
+	s.AutoRefresh = ar
+	b.states.mu.Unlock()
+
+	go b.autoRefreshLoop(ar)
+}
+
+func (b *Bot) autoRefreshLoop(ar *AutoRefreshState) {
+	defer close(ar.Done)
+	for {
+		select {
+		case <-ar.Stop:
+			return
+		case <-ar.Ticker.C:
+			resp := b.tailAgent(ar.AgentName, ar.Verbose)
+			if strings.Contains(resp.Text, "Agent not found") {
+				// Agent disconnected — update message and stop
+				kb := lsInlineKeyboard(nil)
+				disconnected := response{
+					Text:   fmt.Sprintf("<i>Agent <code>%s</code> disconnected.</i>", html.EscapeString(ar.AgentName)),
+					Inline: &kb,
+				}
+				b.editMessage(ar.ChatID, ar.MessageID, disconnected)
+				return
+			}
+			// Override the keyboard to show "Stop refresh" instead of "Start"
+			kb := tailInlineKeyboard(ar.AgentName, ar.Verbose, true)
+			resp.Inline = &kb
+			err := b.editMessage(ar.ChatID, ar.MessageID, resp)
+			// Silently ignore "message is not modified" errors
+			if err != nil && !strings.Contains(err.Error(), "message is not modified") {
+				return
+			}
+		}
+	}
 }
