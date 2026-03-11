@@ -70,7 +70,7 @@ func DiscoverAgents() ([]Agent, error) {
 			if a.SessionID == "" {
 				a.SessionID = fmt.Sprintf("pid-%d", p.PID)
 			}
-			a.Name = GenerateName(dirBase, a.SessionID, p.PID)
+			a.Name = GenerateName(dirBase, p.PID)
 
 		case TypeCodex:
 			thread, err := FindCodexSession(codexDir, cwd)
@@ -88,7 +88,7 @@ func DiscoverAgents() ([]Agent, error) {
 			if a.SessionID == "" {
 				a.SessionID = fmt.Sprintf("pid-%d", p.PID)
 			}
-			a.Name = GenerateName(dirBase, a.SessionID, p.PID)
+			a.Name = GenerateName(dirBase, p.PID)
 		}
 
 		agents = append(agents, a)

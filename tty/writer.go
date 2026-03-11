@@ -2,7 +2,6 @@ package tty
 
 import (
 	"fmt"
-	"os"
 	"os/exec"
 	"regexp"
 	"strconv"
@@ -41,24 +40,3 @@ func VerifyPIDOwnsTTY(pid int, tty string) error {
 	return nil
 }
 
-func WriteToTTY(pid int, tty string, msg string) error {
-	devPath := DevicePath(tty)
-	if devPath == "" {
-		return fmt.Errorf("no TTY attached")
-	}
-
-	if err := VerifyPIDOwnsTTY(pid, tty); err != nil {
-		return err
-	}
-
-	sanitized := SanitizeMessage(msg)
-
-	f, err := os.OpenFile(devPath, os.O_WRONLY, 0)
-	if err != nil {
-		return fmt.Errorf("opening TTY %s: %w", devPath, err)
-	}
-	defer f.Close()
-
-	_, err = f.Write([]byte(sanitized + "\n"))
-	return err
-}
