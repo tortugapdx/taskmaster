@@ -23,10 +23,10 @@ ace-fox         codex   /Users/jpoz/Developer/ace         [waiting]
 venture-cat     claude  /Users/jpoz/Developer/venture     [idle]
 ```
 
-Status detection:
-- `[working]` — process CPU > ~5% (actively generating or running tools)
-- `[waiting]` — low CPU, last JSONL entry is an assistant message (agent finished turn, waiting for user input or permission approval)
-- `[idle]` — low CPU, conversation is quiet
+Status detection (based on session JSONL modification time and last entry type):
+- `[working]` — session JSONL file modified within the last 5 seconds (agent is actively generating or running tools)
+- `[waiting]` — JSONL not recently modified AND last entry is an assistant message (agent finished its turn, waiting for user input or permission approval)
+- `[idle]` — JSONL not recently modified AND last entry is a user message or tool_result (agent processed user input but conversation appears settled)
 
 ### `tail [id]`
 
@@ -65,7 +65,7 @@ If two agents share the same directory basename, they get different words (e.g.,
 On each command (stateless, no background tracking):
 
 1. Run `ps` to find processes matching `claude` or `codex` (excluding helpers like `ShipIt`, `app-server`, `Codex.app`)
-2. For each process, extract PID, TTY, and CWD (via `lsof -p <pid>` cwd entry)
+2. For each process, extract PID, TTY, and CWD (via single `lsof -d cwd -c claude -c codex` batch call)
 3. For Claude Code: find the most recently modified `.jsonl` in `~/.claude/projects/<encoded-cwd>/` to get the session ID
 4. For Codex: query `~/.codex/state_5.sqlite` threads table matching by CWD, most recent `updated_at`
 5. Generate the stable `<dir>-<word>` name from the session ID
@@ -97,6 +97,11 @@ f.Close()
 ```
 
 The TTY device path comes from `ps` output (e.g., `ttys010` -> `/dev/ttys010`).
+
+Safety:
+- Strip ANSI escape sequences and control characters (except newline) from the message before injection
+- Before writing, verify the target PID still owns the TTY (re-check `ps`) to avoid race conditions where the process exits and the TTY is reassigned
+- Only works on agents with an attached TTY; agents without a TTY get an error response
 
 ## Config
 
@@ -146,6 +151,16 @@ taskmaster/
 
 - `github.com/go-telegram-bot-api/telegram-bot-api/v5` — Telegram bot API
 - `modernc.org/sqlite` — pure Go SQLite (no cgo)
+
+## Error Handling
+
+Telegram error responses for each command:
+- `ls` with no agents found: "No active agents found."
+- `tail`/`echo` with invalid ID: "Unknown agent: <id>. Use ls to see active agents."
+- `echo` to agent without TTY: "Agent <id> has no TTY attached."
+- `echo` to agent whose process died between discovery and write: "Agent <id> is no longer running."
+- `tail` when session JSONL is missing or unreadable: "Could not read session for <id>."
+- Discovery finds a process with no matching session file: agent is listed in `ls` but with `[unknown]` status; `tail` returns "No session data available for <id>."
 
 ## Security
 
