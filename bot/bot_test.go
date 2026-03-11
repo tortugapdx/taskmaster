@@ -63,16 +63,43 @@ func TestFindAgent(t *testing.T) {
 	if a := findAgent(agents, "ace-fox"); a == nil || a.Name != "ace-fox" {
 		t.Error("should find ace-fox")
 	}
+	if a := findAgent(agents, "ace-fo"); a == nil || a.Name != "ace-fox" {
+		t.Error("should find ace-fox by prefix")
+	}
 	if a := findAgent(agents, "nope"); a != nil {
 		t.Error("should not find nope")
 	}
 }
 
 func TestHandleCommand_Unknown(t *testing.T) {
-	b := &Bot{}
+	b := &Bot{states: newStateManager()}
 	reply := b.handleCommand("blah")
-	if !strings.Contains(reply, "Unknown command") {
-		t.Errorf("expected unknown command response, got: %s", reply)
+	if !strings.Contains(reply.Text, "Unknown command") {
+		t.Errorf("expected unknown command response, got: %s", reply.Text)
+	}
+}
+
+func TestHandleCommand_Start(t *testing.T) {
+	b := &Bot{states: newStateManager()}
+	reply := b.handleCommand("/start")
+	if !strings.Contains(reply.Text, "Taskmaster") {
+		t.Errorf("expected welcome text, got: %s", reply.Text)
+	}
+}
+
+func TestHandleCommand_TailNoPicker(t *testing.T) {
+	b := &Bot{states: newStateManager()}
+	reply := b.handleCommand("tail")
+	if strings.Contains(reply.Text, "Usage") {
+		t.Error("tail with no args should show picker, not usage")
+	}
+}
+
+func TestHandleCommand_EchoNoPicker(t *testing.T) {
+	b := &Bot{states: newStateManager()}
+	reply := b.handleCommand("echo")
+	if strings.Contains(reply.Text, "Usage") {
+		t.Error("echo with no args should show picker, not usage")
 	}
 }
 
