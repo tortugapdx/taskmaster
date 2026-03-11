@@ -91,10 +91,13 @@ func (b *Bot) Run() error {
 		b.states.clearEcho(chatID)
 
 		reply := b.handleCommand(text)
-		if text == "/start" {
-			b.sendWithReplyKeyboard(chatID, reply)
-		} else {
+		parts := strings.Fields(text)
+		isKnownCmd := len(parts) > 0 && (parts[0] == "ls" || parts[0] == "tail" || parts[0] == "echo")
+		if isKnownCmd {
 			b.send(chatID, reply)
+		} else {
+			// /start, unrecognized text, and empty input re-send the reply keyboard
+			b.sendWithReplyKeyboard(chatID, reply)
 		}
 	}
 

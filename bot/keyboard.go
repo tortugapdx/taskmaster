@@ -9,7 +9,6 @@ import (
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
 
-const maxCallbackData = 64
 const maxNameLen = 50
 
 // formatCallback builds a callback data string like "action:arg1:arg2".
