@@ -30,6 +30,8 @@ func DiscoverAgents() ([]Agent, error) {
 		return nil, err
 	}
 
+	activeConns := resolveActiveConnections(procs)
+
 	home, _ := os.UserHomeDir()
 	claudeProjectsDir := filepath.Join(home, ".claude", "projects")
 	codexDir := filepath.Join(home, ".codex")
@@ -42,10 +44,11 @@ func DiscoverAgents() ([]Agent, error) {
 		}
 
 		a := Agent{
-			Type: p.AgentType,
-			CWD:  cwd,
-			PID:  p.PID,
-			TTY:  p.TTY,
+			Type:           p.AgentType,
+			CWD:            cwd,
+			PID:            p.PID,
+			TTY:            p.TTY,
+			HasActiveConns: activeConns[p.PID],
 		}
 
 		dirBase := filepath.Base(cwd)
@@ -60,12 +63,14 @@ func DiscoverAgents() ([]Agent, error) {
 				if info != nil {
 					a.SessionModTime = info.ModTime()
 				}
-				a.LastEntryType, _ = ClaudeLastEntryType(sessionPath)
+				state, _ := ClaudeSessionState(sessionPath)
+				a.LastEntryType = state.LastEntryType
+				a.PendingToolUse = state.PendingToolUse
 			}
 			if a.SessionID == "" {
 				a.SessionID = fmt.Sprintf("pid-%d", p.PID)
 			}
-			a.Name = GenerateName(dirBase, a.SessionID)
+			a.Name = GenerateName(dirBase, a.SessionID, p.PID)
 
 		case TypeCodex:
 			thread, err := FindCodexSession(codexDir, cwd)
@@ -76,12 +81,14 @@ func DiscoverAgents() ([]Agent, error) {
 				if info != nil {
 					a.SessionModTime = info.ModTime()
 				}
-				a.LastEntryType, _ = CodexLastEntryType(thread.RolloutPath)
+				state, _ := CodexSessionState(thread.RolloutPath)
+				a.LastEntryType = state.LastEntryType
+				a.PendingToolUse = state.PendingToolUse
 			}
 			if a.SessionID == "" {
 				a.SessionID = fmt.Sprintf("pid-%d", p.PID)
 			}
-			a.Name = GenerateName(dirBase, a.SessionID)
+			a.Name = GenerateName(dirBase, a.SessionID, p.PID)
 		}
 
 		agents = append(agents, a)
@@ -154,6 +161,41 @@ func classifyArgs(args string) (agentType AgentType, skip bool) {
 	}
 
 	return "", true
+}
+
+// resolveActiveConnections returns a set of PIDs that have at least one
+// ESTABLISHED TCP connection (a strong signal the process is making API calls).
+func resolveActiveConnections(procs []processInfo) map[int]bool {
+	if len(procs) == 0 {
+		return nil
+	}
+
+	pids := make([]string, len(procs))
+	for i, p := range procs {
+		pids[i] = strconv.Itoa(p.PID)
+	}
+
+	out, err := exec.Command("lsof", "-a", "-i", "TCP", "-p", strings.Join(pids, ",")).Output()
+	if err != nil {
+		return nil
+	}
+
+	conns := make(map[int]bool)
+	for _, line := range strings.Split(string(out), "\n") {
+		if !strings.Contains(line, "ESTABLISHED") {
+			continue
+		}
+		fields := strings.Fields(line)
+		if len(fields) < 2 {
+			continue
+		}
+		pid, err := strconv.Atoi(fields[1])
+		if err != nil {
+			continue
+		}
+		conns[pid] = true
+	}
+	return conns
 }
 
 func resolveCWDs(procs []processInfo) (map[int]string, error) {

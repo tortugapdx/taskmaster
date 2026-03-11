@@ -51,7 +51,7 @@ func TestParseCodexMessages_EmptyFile(t *testing.T) {
 	}
 }
 
-func TestCodexLastEntryType(t *testing.T) {
+func TestCodexSessionState_AgentMessage(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "test.jsonl")
 
@@ -60,11 +60,32 @@ func TestCodexLastEntryType(t *testing.T) {
 `
 	os.WriteFile(path, []byte(lines), 0644)
 
-	entryType, err := CodexLastEntryType(path)
+	state, err := CodexSessionState(path)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if entryType != "assistant" {
-		t.Errorf("got %q, want %q", entryType, "assistant")
+	if state.LastEntryType != "assistant" {
+		t.Errorf("LastEntryType = %q, want %q", state.LastEntryType, "assistant")
+	}
+	if state.PendingToolUse {
+		t.Error("PendingToolUse should be false for agent_message")
+	}
+}
+
+func TestCodexSessionState_PendingFunctionCall(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "test.jsonl")
+
+	lines := `{"type":"response_item","payload":{"type":"message","role":"user","content":[{"type":"input_text","text":"fix it"}]}}
+{"type":"response_item","payload":{"type":"function_call","name":"apply_patch","arguments":"{}"}}
+`
+	os.WriteFile(path, []byte(lines), 0644)
+
+	state, err := CodexSessionState(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !state.PendingToolUse {
+		t.Error("PendingToolUse should be true when last entry is function_call")
 	}
 }

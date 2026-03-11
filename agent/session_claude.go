@@ -143,14 +143,16 @@ func parseClaudeContent(role string, raw json.RawMessage) []Message {
 	return msgs
 }
 
-func ClaudeLastEntryType(path string) (string, error) {
+func ClaudeSessionState(path string) (SessionState, error) {
 	f, err := os.Open(path)
 	if err != nil {
-		return "", err
+		return SessionState{}, err
 	}
 	defer f.Close()
 
-	var lastType string
+	var state SessionState
+	pendingToolUse := false
+
 	scanner := bufio.NewScanner(f)
 	scanner.Buffer(make([]byte, 1024*1024), 1024*1024)
 
@@ -159,9 +161,37 @@ func ClaudeLastEntryType(path string) (string, error) {
 		if err := json.Unmarshal(scanner.Bytes(), &entry); err != nil {
 			continue
 		}
-		if entry.Type == "user" || entry.Type == "assistant" {
-			lastType = entry.Type
+
+		if entry.Type == "assistant" {
+			state.LastEntryType = "assistant"
+			pendingToolUse = entry.Message != nil && claudeHasToolUse(entry.Message)
+		} else if entry.Type == "user" {
+			state.LastEntryType = "user"
+			// A user entry following an assistant clears the pending flag
+			// (tool_result comes as a "user" type entry).
+			pendingToolUse = false
 		}
 	}
-	return lastType, scanner.Err()
+
+	state.PendingToolUse = pendingToolUse
+	return state, scanner.Err()
+}
+
+// claudeHasToolUse reports whether an assistant message's content array
+// contains at least one tool_use block.
+func claudeHasToolUse(raw json.RawMessage) bool {
+	var msg claudeMessage
+	if err := json.Unmarshal(raw, &msg); err != nil {
+		return false
+	}
+	var blocks []claudeContentBlock
+	if err := json.Unmarshal(msg.Content, &blocks); err != nil {
+		return false
+	}
+	for _, b := range blocks {
+		if b.Type == "tool_use" {
+			return true
+		}
+	}
+	return false
 }

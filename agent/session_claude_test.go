@@ -99,7 +99,7 @@ func TestEncodeCWD(t *testing.T) {
 	}
 }
 
-func TestClaudeLastEntryType(t *testing.T) {
+func TestClaudeSessionState_TextOnly(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "test.jsonl")
 
@@ -108,12 +108,58 @@ func TestClaudeLastEntryType(t *testing.T) {
 `
 	os.WriteFile(path, []byte(lines), 0644)
 
-	entryType, err := ClaudeLastEntryType(path)
+	state, err := ClaudeSessionState(path)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if entryType != "assistant" {
-		t.Errorf("got %q, want %q", entryType, "assistant")
+	if state.LastEntryType != "assistant" {
+		t.Errorf("LastEntryType = %q, want %q", state.LastEntryType, "assistant")
+	}
+	if state.PendingToolUse {
+		t.Error("PendingToolUse should be false for text-only assistant message")
+	}
+}
+
+func TestClaudeSessionState_PendingToolUse(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "test.jsonl")
+
+	lines := `{"type":"user","message":{"role":"user","content":"read the file"}}
+{"type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"let me read that"},{"type":"tool_use","name":"Read","input":{}}]}}
+`
+	os.WriteFile(path, []byte(lines), 0644)
+
+	state, err := ClaudeSessionState(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if state.LastEntryType != "assistant" {
+		t.Errorf("LastEntryType = %q, want %q", state.LastEntryType, "assistant")
+	}
+	if !state.PendingToolUse {
+		t.Error("PendingToolUse should be true when last assistant has tool_use")
+	}
+}
+
+func TestClaudeSessionState_ToolResultClears(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "test.jsonl")
+
+	lines := `{"type":"user","message":{"role":"user","content":"read the file"}}
+{"type":"assistant","message":{"role":"assistant","content":[{"type":"tool_use","name":"Read","input":{}}]}}
+{"type":"user","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"x","content":"file data"}]}}
+`
+	os.WriteFile(path, []byte(lines), 0644)
+
+	state, err := ClaudeSessionState(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if state.LastEntryType != "user" {
+		t.Errorf("LastEntryType = %q, want %q", state.LastEntryType, "user")
+	}
+	if state.PendingToolUse {
+		t.Error("PendingToolUse should be false after tool_result")
 	}
 }
 

@@ -112,14 +112,16 @@ func ParseCodexMessages(path string, n int) ([]Message, error) {
 	return all, scanner.Err()
 }
 
-func CodexLastEntryType(path string) (string, error) {
+func CodexSessionState(path string) (SessionState, error) {
 	f, err := os.Open(path)
 	if err != nil {
-		return "", err
+		return SessionState{}, err
 	}
 	defer f.Close()
 
-	var lastType string
+	var state SessionState
+	pendingToolUse := false
+
 	scanner := bufio.NewScanner(f)
 	scanner.Buffer(make([]byte, 1024*1024), 1024*1024)
 
@@ -136,9 +138,11 @@ func CodexLastEntryType(path string) (string, error) {
 				continue
 			}
 			if payload.Role == "user" {
-				lastType = "user"
+				state.LastEntryType = "user"
+				pendingToolUse = false
 			} else if payload.Type == "function_call" {
-				lastType = "assistant"
+				state.LastEntryType = "assistant"
+				pendingToolUse = true
 			}
 		case "event_msg":
 			var payload codexEventPayload
@@ -146,9 +150,12 @@ func CodexLastEntryType(path string) (string, error) {
 				continue
 			}
 			if payload.Type == "agent_message" {
-				lastType = "assistant"
+				state.LastEntryType = "assistant"
+				pendingToolUse = false
 			}
 		}
 	}
-	return lastType, scanner.Err()
+
+	state.PendingToolUse = pendingToolUse
+	return state, scanner.Err()
 }

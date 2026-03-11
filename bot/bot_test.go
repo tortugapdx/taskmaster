@@ -13,13 +13,13 @@ func TestFormatMessages_NonVerbose(t *testing.T) {
 		{Role: "assistant", Content: "hi there"},
 	}
 	out := formatMessages(msgs, agent.TypeClaude)
-	if out == "(no messages)" {
+	if strings.Contains(out, "No messages") {
 		t.Error("expected messages, got empty")
 	}
-	if !strings.Contains(out, "[you] hello") {
+	if !strings.Contains(out, "hello") {
 		t.Errorf("missing user message in: %s", out)
 	}
-	if !strings.Contains(out, "[claude] hi there") {
+	if !strings.Contains(out, "hi there") {
 		t.Errorf("missing assistant message in: %s", out)
 	}
 }
@@ -29,8 +29,8 @@ func TestFormatMessages_CodexLabel(t *testing.T) {
 		{Role: "assistant", Content: "done"},
 	}
 	out := formatMessages(msgs, agent.TypeCodex)
-	if !strings.Contains(out, "[codex] done") {
-		t.Errorf("expected [codex] label in: %s", out)
+	if !strings.Contains(out, "codex") {
+		t.Errorf("expected codex label in: %s", out)
 	}
 }
 
@@ -40,15 +40,18 @@ func TestFormatMessages_Truncation(t *testing.T) {
 		{Role: "user", Content: long},
 	}
 	out := formatMessages(msgs, agent.TypeClaude)
-	if len(out) > 520 {
-		t.Errorf("message not truncated, len = %d", len(out))
+	if strings.Contains(out, strings.Repeat("a", 600)) {
+		t.Error("message not truncated")
+	}
+	if !strings.Contains(out, "...") {
+		t.Error("expected truncation marker")
 	}
 }
 
 func TestFormatMessages_Empty(t *testing.T) {
 	out := formatMessages(nil, agent.TypeClaude)
-	if out != "(no messages)" {
-		t.Errorf("expected '(no messages)', got %q", out)
+	if !strings.Contains(out, "No messages") {
+		t.Errorf("expected 'No messages' indicator, got %q", out)
 	}
 }
 
@@ -70,5 +73,23 @@ func TestHandleCommand_Unknown(t *testing.T) {
 	reply := b.handleCommand("blah")
 	if !strings.Contains(reply, "Unknown command") {
 		t.Errorf("expected unknown command response, got: %s", reply)
+	}
+}
+
+func TestStatusToIcon(t *testing.T) {
+	tests := []struct {
+		status agent.Status
+		icon   string
+	}{
+		{agent.StatusWorking, "🟢"},
+		{agent.StatusWaiting, "🟡"},
+		{agent.StatusIdle, "⚪"},
+		{agent.StatusUnknown, "🔴"},
+	}
+	for _, tt := range tests {
+		got := statusToIcon(tt.status)
+		if got != tt.icon {
+			t.Errorf("statusToIcon(%q) = %q, want %q", tt.status, got, tt.icon)
+		}
 	}
 }

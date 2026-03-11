@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	_ "embed"
 	"fmt"
 	"log"
 	"os"
@@ -10,7 +11,12 @@ import (
 	"github.com/jpoz/taskmaster/config"
 )
 
+//go:embed banner.txt
+var banner string
+
 func main() {
+	fmt.Print(banner)
+
 	cfgPath := config.DefaultPath()
 
 	cfg, err := config.LoadFromFile(cfgPath)
@@ -26,7 +32,7 @@ func main() {
 		fmt.Printf("\nConfig saved to %s\n", cfgPath)
 	}
 
-	fmt.Println("Starting bot...")
+	fmt.Println()
 
 	b, err := bot.New(cfg.TelegramBotToken, cfg.TelegramUserID)
 	if err != nil {

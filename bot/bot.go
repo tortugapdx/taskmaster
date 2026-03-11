@@ -2,7 +2,10 @@ package bot
 
 import (
 	"fmt"
+	"html"
+	"os"
 	"strings"
+	"time"
 
 	"github.com/jpoz/taskmaster/agent"
 	"github.com/jpoz/taskmaster/tty"
@@ -29,6 +32,25 @@ func (b *Bot) Run() error {
 
 	updates := b.api.GetUpdatesChan(u)
 
+	fmt.Printf("Bot connected as @%s\n", b.api.Self.UserName)
+
+	spinner := []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
+	spinIdx := 0
+	stop := make(chan struct{})
+	go func() {
+		ticker := time.NewTicker(100 * time.Millisecond)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-stop:
+				return
+			case <-ticker.C:
+				fmt.Fprintf(os.Stderr, "\r%s Listening...", spinner[spinIdx%len(spinner)])
+				spinIdx++
+			}
+		}
+	}()
+
 	for update := range updates {
 		if update.Message == nil {
 			continue
@@ -41,13 +63,16 @@ func (b *Bot) Run() error {
 		reply := b.handleCommand(text)
 		b.send(update.Message.Chat.ID, reply)
 	}
+
+	close(stop)
+	fmt.Fprintf(os.Stderr, "\r")
 	return nil
 }
 
 func (b *Bot) handleCommand(text string) string {
 	parts := strings.Fields(text)
 	if len(parts) == 0 {
-		return "Send: ls, tail [id], or echo [id] [msg]"
+		return helpText()
 	}
 
 	cmd := strings.ToLower(parts[0])
@@ -59,29 +84,58 @@ func (b *Bot) handleCommand(text string) string {
 	case "echo":
 		return b.handleEcho(parts[1:])
 	default:
-		return "Unknown command. Send: ls, tail [id], or echo [id] [msg]"
+		return "Unknown command.\n\n" + helpText()
 	}
+}
+
+func helpText() string {
+	return "<b>Commands:</b>\n" +
+		"<code>ls</code> — list active agents\n" +
+		"<code>tail [id]</code> — recent messages\n" +
+		"<code>tail -v [id]</code> — verbose (incl. tool/thinking)\n" +
+		"<code>echo [id] [msg]</code> — send text to agent"
 }
 
 func (b *Bot) handleLs() string {
 	agents, err := agent.DiscoverAgents()
 	if err != nil {
-		return fmt.Sprintf("Error discovering agents: %v", err)
+		return fmt.Sprintf("Error discovering agents: %v", html.EscapeString(err.Error()))
 	}
 	if len(agents) == 0 {
-		return "No active agents found."
+		return "<i>No active agents found.</i>"
+	}
+
+	// Group agents by working directory.
+	groups := make(map[string][]agent.Agent)
+	var order []string
+	for _, a := range agents {
+		if _, seen := groups[a.CWD]; !seen {
+			order = append(order, a.CWD)
+		}
+		groups[a.CWD] = append(groups[a.CWD], a)
 	}
 
 	var sb strings.Builder
-	for _, a := range agents {
-		fmt.Fprintf(&sb, "%-16s %-8s %s  [%s]\n", a.Name, a.Type, a.CWD, a.Status())
+	sb.WriteString("<b>Active Agents</b>\n\n")
+	for _, cwd := range order {
+		fmt.Fprintf(&sb, "📁 <code>%s</code>\n", html.EscapeString(cwd))
+		for _, a := range groups[cwd] {
+			status := a.Status()
+			fmt.Fprintf(&sb, "  %s <b>%s</b> <i>%s</i> <code>%s</code>\n",
+				statusToIcon(status),
+				html.EscapeString(a.Name),
+				html.EscapeString(string(status)),
+				html.EscapeString(string(a.Type)),
+			)
+		}
+		sb.WriteString("\n")
 	}
 	return sb.String()
 }
 
 func (b *Bot) handleTail(args []string) string {
 	if len(args) == 0 {
-		return "Usage: tail [-v] <id>"
+		return "Usage: <code>tail [-v] &lt;id&gt;</code>"
 	}
 
 	verbose := false
@@ -89,23 +143,23 @@ func (b *Bot) handleTail(args []string) string {
 	if id == "-v" {
 		verbose = true
 		if len(args) < 2 {
-			return "Usage: tail -v <id>"
+			return "Usage: <code>tail -v &lt;id&gt;</code>"
 		}
 		id = args[1]
 	}
 
 	agents, err := agent.DiscoverAgents()
 	if err != nil {
-		return fmt.Sprintf("Error: %v", err)
+		return fmt.Sprintf("Error: %v", html.EscapeString(err.Error()))
 	}
 
 	a := findAgent(agents, id)
 	if a == nil {
-		return fmt.Sprintf("Unknown agent: %s. Use ls to see active agents.", id)
+		return fmt.Sprintf("Unknown agent: <code>%s</code>. Use <code>ls</code> to see active agents.", html.EscapeString(id))
 	}
 
 	if a.SessionPath == "" {
-		return fmt.Sprintf("No session data available for %s.", id)
+		return fmt.Sprintf("No session data available for <code>%s</code>.", html.EscapeString(id))
 	}
 
 	fetchCount := 50
@@ -142,7 +196,7 @@ func (b *Bot) handleTail(args []string) string {
 
 func (b *Bot) handleEcho(args []string) string {
 	if len(args) < 2 {
-		return "Usage: echo <id> <message>"
+		return "Usage: <code>echo &lt;id&gt; &lt;message&gt;</code>"
 	}
 
 	id := args[0]
@@ -150,26 +204,39 @@ func (b *Bot) handleEcho(args []string) string {
 
 	agents, err := agent.DiscoverAgents()
 	if err != nil {
-		return fmt.Sprintf("Error: %v", err)
+		return fmt.Sprintf("Error: %v", html.EscapeString(err.Error()))
 	}
 
 	a := findAgent(agents, id)
 	if a == nil {
-		return fmt.Sprintf("Unknown agent: %s. Use ls to see active agents.", id)
+		return fmt.Sprintf("Unknown agent: <code>%s</code>. Use <code>ls</code> to see active agents.", html.EscapeString(id))
 	}
 
 	if a.TTY == "" || a.TTY == "??" {
-		return fmt.Sprintf("Agent %s has no TTY attached.", id)
+		return fmt.Sprintf("Agent <code>%s</code> has no TTY attached.", html.EscapeString(id))
 	}
 
 	if err := tty.WriteToTTY(a.PID, a.TTY, msg); err != nil {
 		if strings.Contains(err.Error(), "no longer running") {
-			return fmt.Sprintf("Agent %s is no longer running.", id)
+			return fmt.Sprintf("Agent <code>%s</code> is no longer running.", html.EscapeString(id))
 		}
-		return fmt.Sprintf("Error writing to %s: %v", id, err)
+		return fmt.Sprintf("Error writing to <code>%s</code>: %v", html.EscapeString(id), html.EscapeString(err.Error()))
 	}
 
-	return fmt.Sprintf("Sent to %s: %s", id, msg)
+	return fmt.Sprintf("Sent to <b>%s</b>: <code>%s</code>", html.EscapeString(id), html.EscapeString(msg))
+}
+
+func statusToIcon(s agent.Status) string {
+	switch s {
+	case agent.StatusWorking:
+		return "🟢"
+	case agent.StatusWaiting:
+		return "🟡"
+	case agent.StatusIdle:
+		return "⚪"
+	default:
+		return "🔴"
+	}
 }
 
 func findAgent(agents []agent.Agent, id string) *agent.Agent {
@@ -183,22 +250,22 @@ func findAgent(agents []agent.Agent, id string) *agent.Agent {
 
 func formatMessages(msgs []agent.Message, agentType agent.AgentType) string {
 	if len(msgs) == 0 {
-		return "(no messages)"
+		return "<i>No messages.</i>"
 	}
 
-	assistantLabel := "[claude]"
+	assistantLabel := "🤖 claude"
 	if agentType == agent.TypeCodex {
-		assistantLabel = "[codex]"
+		assistantLabel = "🤖 codex"
 	}
 
 	var sb strings.Builder
 	for _, m := range msgs {
-		label := "[you]"
+		label := "👤 you"
 		if m.Role == "assistant" {
 			if m.IsThinking {
-				label = "[thinking]"
+				label = "💭 thinking"
 			} else if m.IsToolUse {
-				label = "[tool]"
+				label = "🔧 tool"
 			} else {
 				label = assistantLabel
 			}
@@ -208,8 +275,9 @@ func formatMessages(msgs []agent.Message, agentType agent.AgentType) string {
 		if len(content) > 500 {
 			content = content[:500] + "..."
 		}
+		content = html.EscapeString(content)
 
-		fmt.Fprintf(&sb, "%s %s\n\n", label, content)
+		fmt.Fprintf(&sb, "<b>%s</b>\n%s\n\n", label, content)
 	}
 	return sb.String()
 }
@@ -219,5 +287,6 @@ func (b *Bot) send(chatID int64, text string) {
 		text = text[:4000] + "\n..."
 	}
 	msg := tgbotapi.NewMessage(chatID, text)
+	msg.ParseMode = tgbotapi.ModeHTML
 	b.api.Send(msg)
 }

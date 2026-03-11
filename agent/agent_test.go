@@ -5,13 +5,35 @@ import (
 	"time"
 )
 
-func TestAgent_Status_Working(t *testing.T) {
+func TestAgent_Status_Working_RecentMod(t *testing.T) {
 	a := Agent{
 		SessionModTime: time.Now(),
 		LastEntryType:  "assistant",
 	}
 	if s := a.Status(); s != StatusWorking {
 		t.Errorf("got %q, want %q", s, StatusWorking)
+	}
+}
+
+func TestAgent_Status_Working_ActiveConns(t *testing.T) {
+	a := Agent{
+		SessionModTime: time.Now().Add(-30 * time.Second),
+		LastEntryType:  "assistant",
+		HasActiveConns: true,
+	}
+	if s := a.Status(); s != StatusWorking {
+		t.Errorf("got %q, want %q (active connections)", s, StatusWorking)
+	}
+}
+
+func TestAgent_Status_Working_PendingToolUse(t *testing.T) {
+	a := Agent{
+		SessionModTime: time.Now().Add(-30 * time.Second),
+		LastEntryType:  "assistant",
+		PendingToolUse: true,
+	}
+	if s := a.Status(); s != StatusWorking {
+		t.Errorf("got %q, want %q (pending tool use)", s, StatusWorking)
 	}
 }
 

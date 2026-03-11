@@ -1,2 +1,4 @@
 taskmaster
 *.exe
+tmp/
+build-errors.log
