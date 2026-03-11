@@ -65,3 +65,7 @@ func (sm *stateManager) stopAutoRefresh(chatID int64) {
 	close(ar.Stop)
 	<-ar.Done
 }
+
+func (b *Bot) startAutoRefresh(chatID int64, messageID int, agentName string, verbose bool) {
+	// Implemented in Task 6
+}
