@@ -1,0 +1,38 @@
+package wordlist
+
+// Words is a 256-word list of short, memorable animal/nature words for agent naming.
+// All entries are unique.
+var Words = [256]string{
+	"ant", "ape", "asp", "bat", "bee", "boa", "bug", "cat",
+	"cod", "cow", "cub", "dab", "doe", "dog", "eel", "elk",
+	"emu", "ewe", "fly", "fox", "gar", "gnu", "hen", "hog",
+	"jay", "kea", "kid", "koi", "lam", "leo", "moa", "owl",
+	"pig", "pug", "ram", "rat", "ray", "roc", "roe", "roo",
+	"sal", "yak", "wol", "tit", "tur", "tui", "tad", "sow",
+	"alb", "auk", "axo", "bai", "bar", "bas", "bir", "boo",
+	"buc", "buf", "bul", "bun", "cab", "cam", "cap", "car",
+	"chi", "cic", "cla", "cob", "con", "cor", "cra", "cro",
+	"cur", "dac", "dar", "dee", "din", "dol", "don", "dor",
+	"dov", "dra", "dro", "duc", "dug", "dun", "eag", "ear",
+	"ech", "eld", "eri", "fal", "fan", "fer", "fin", "fla",
+	"flo", "fri", "gal", "gaz", "gec", "ger", "goa", "goo",
+	"gor", "gos", "gro", "gru", "gui", "gul", "gup", "ham",
+	"har", "haw", "hed", "her", "hip", "hor", "hum", "hye",
+	"ibi", "imp", "jab", "jac", "jag", "jel", "jer", "kan",
+	"kes", "kin", "kit", "koa", "koo", "kud", "lac", "lar",
+	"lem", "lyn", "lin", "lio", "liz", "lla", "lob", "loo",
+	"lor", "mac", "mag", "man", "mar", "mee", "min", "mol",
+	"mon", "moo", "mos", "mou", "mul", "mun", "mus", "mut",
+	"nar", "new", "nig", "oct", "oka", "ori", "osp", "ost",
+	"ott", "pan", "par", "pea", "pel", "pen", "per", "phe",
+	"pho", "pir", "pla", "pol", "por", "pos", "pra", "puf",
+	"pum", "pyt", "qua", "rab", "rac", "rai", "rap", "rav",
+	"rhi", "rob", "ros", "sab", "san", "sca", "sea", "ser",
+	"sha", "she", "shr", "sil", "ska", "slo", "sna", "sni",
+	"spa", "spi", "squ", "sta", "sto", "stu", "sun", "swa",
+	"swi", "tap", "tar", "ter", "tig", "toa", "tor", "tre",
+	"tro", "tun", "ung", "uru", "val", "vip", "vul", "wal",
+	"war", "wea", "wha", "wil", "wis", "wom", "woo", "wre",
+	"xen", "zeb", "zer", "zor", "sku", "coy", "myr", "aye",
+	"cas", "dik", "fos", "nab", "orb", "pik", "vet", "wag",
+}
