@@ -35,6 +35,8 @@ Taskmaster discovers running AI agents on your machine, lets you view their conv
 | ⚪ | Idle — processed last input, quiet |
 | 🔴 | Unknown — no session file found |
 
+> **Note:** For best results, run your AI agents inside [tmux](https://github.com/tmux/tmux). Taskmaster uses `tmux send-keys` to deliver input to agents, which is more reliable than direct TTY writing. Without tmux, the `echo` command falls back to the Claude CLI's `--resume` flag, which works but is less seamless.
+
 ## Getting Started
 
 ### Prerequisites
